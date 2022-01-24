@@ -227,44 +227,22 @@ if [ "$status" = failure ]; then
   fi
   exit 1
 fi
+if [ "$PLATFORM_NAME" = "IBM_KUBERNETES_SERVICE" ]; then
+  IP_ADDRESS=$(kubectl get nodes -o json | jq -r '[.items[] | .status.addresses[] | select(.type == "ExternalIP") | .address] | .[0]')
+  PORT=$(kubectl get service -n  "$IBMCLOUD_IKS_CLUSTER_NAMESPACE" "$service_name" -o json | jq -r '.spec.ports[0].nodePort')
+  echo "IKS Application REST URL (via NodePort): http://${IP_ADDRESS}:${PORT}/category/2/products"
+  echo -n "http://${IP_ADDRESS}:${PORT}" > ../app-url
 
+  #echo "IKS Application Backend REST URL example (via Ingress): http://${HOST}/backend/category/"
+  #echo -n "http://${HOST}/backend" > ../app-url
+else
+  
+  IP_ADDRESS=$(kubectl get nodes -o json | jq -r '[.items[] | .status.addresses[] | select(.type == "ExternalIP") | .address] | .[0]')
+  PORT=$(kubectl get service -n  "$IBMCLOUD_IKS_CLUSTER_NAMESPACE" "$service_name" -o json | jq -r '.spec.ports[0].nodePort')
 
-echo "CLUSTER_INGRESS_SUBDOMAIN=${CLUSTER_INGRESS_SUBDOMAIN}"
-echo "KEEP_INGRESS_CUSTOM_DOMAIN=${KEEP_INGRESS_CUSTOM_DOMAIN}"
+  echo "OpenShift Application REST URL (via NodePort): http://${IP_ADDRESS}:${PORT}/category/2/products"
+  echo -n "http://${IP_ADDRESS}:${PORT}" > ../app-url
 
-if [ ! -z "${CLUSTER_INGRESS_SUBDOMAIN}" ] && [ "${KEEP_INGRESS_CUSTOM_DOMAIN}" != true ]; then
-  INGRESS_DOC_INDEX=$(yq read --doc "*" --tojson ${YAML_FILE} | jq -r 'to_entries | .[] | select(.value.kind | ascii_downcase=="ingress") | .key')
-  if [ -z "$INGRESS_DOC_INDEX" ]; then
-    echo "No Kubernetes Ingress definition found in ${YAML_FILE}."
-  else
-    service_name=$(yq r --doc $INGRESS_DOC_INDEX ${YAML_FILE} metadata.name)  
-    APPURL=$(kubectl get ing ${service_name} --namespace "$IBMCLOUD_IKS_CLUSTER_NAMESPACE" -o json | jq -r  .spec.rules[0].host)
-    echo "Application URL (via Ingress): https://${APPURL}/category/2/products"
-    APP_URL_PATH="$(echo "${INVENTORY_ENTRY}" | sed 's/\//_/g')_app-url.json"
-    echo -n https://${APPURL} > ../app-url
-  fi
-
-else 
-
-  if [ "$PLATFORM_NAME" = "IBM_KUBERNETES_SERVICE" ]; then
-    IP_ADDRESS=$(kubectl get nodes -o json | jq -r '[.items[] | .status.addresses[] | select(.type == "ExternalIP") | .address] | .[0]')
-    PORT=$(kubectl get service -n  "$IBMCLOUD_IKS_CLUSTER_NAMESPACE" "$service_name" -o json | jq -r '.spec.ports[0].nodePort')
-    echo "IKS Application REST URL (via NodePort): http://${IP_ADDRESS}:${PORT}/category/2/products"
-    echo -n "http://${IP_ADDRESS}:${PORT}" > ../app-url
-
-
-  else
-    
-    IP_ADDRESS=$(kubectl get nodes -o json | jq -r '[.items[] | .status.addresses[] | select(.type == "ExternalIP") | .address] | .[0]')
-    PORT=$(kubectl get service -n  "$IBMCLOUD_IKS_CLUSTER_NAMESPACE" "$service_name" -o json | jq -r '.spec.ports[0].nodePort')
-
-    echo "OpenShift Application REST URL (via NodePort): http://${IP_ADDRESS}:${PORT}/category/2/products"
-    echo "N.B This URL will not work unless you are connected to IBM Cloud via VPN, because OpenShift workers do not have a public IP"
-    echo -n "http://${IP_ADDRESS}:${PORT}" > ../app-url
-
-
-  fi
-
+  #echo "OpenShift Application Backend REST URL example (via Ingress): http://${HOST}/backend/category"
+  #echo -n "http://${HOST}/backend" > ../app-url
 fi
-
-
